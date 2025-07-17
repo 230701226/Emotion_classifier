@@ -1,33 +1,43 @@
 import gradio as gr
 import torch
-from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch.nn.functional as F
 import numpy as np
 
 # Load model and tokenizer
 model_name = "bhadresh-savani/distilbert-base-uncased-emotion"
-tokenizer = DistilBertTokenizerFast.from_pretrained(model_name)
-model = DistilBertForSequenceClassification.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSequenceClassification.from_pretrained(model_name)
+model.eval()
 
-# Labels for GoEmotions
-labels = ['admiration', 'amusement', 'anger', 'annoyance', 'approval', 'caring',
-          'confusion', 'curiosity', 'desire', 'disappointment', 'disapproval', 'disgust',
-          'embarrassment', 'excitement', 'fear', 'gratitude', 'grief', 'joy', 'love',
-          'nervousness', 'optimism', 'pride', 'realization', 'relief', 'remorse',
-          'sadness', 'surprise', 'neutral']
+# Get emotion labels
+id2label = model.config.id2label
+label_names = list(id2label.values())
 
-def predict_emotion(text):
+# Main prediction function
+def predict_emotions(text):
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
     with torch.no_grad():
-        outputs = model(**inputs)
-    probs = torch.nn.functional.softmax(outputs.logits, dim=1).numpy().flatten()
-    top_idx = np.argmax(probs)
-    return {labels[i]: float(probs[i]) for i in np.argsort(-probs)[:5]}  # top 5 emotions
+        logits = model(**inputs).logits
+        probs = F.softmax(logits, dim=1).squeeze().cpu().numpy()
 
-interface = gr.Interface(fn=predict_emotion,
-                         inputs=gr.Textbox(placeholder="Enter text..."),
-                         outputs=gr.Label(num_top_classes=5),
-                         title="Emotion Classifier (GoEmotions)",
-                         description="Predicts emotions using DistilBERT fine-tuned on GoEmotions.")
+    top3_idx = probs.argsort()[-3:][::-1]
+    top3_labels = [(label_names[i], round(float(probs[i]), 3)) for i in top3_idx]
 
-if __name__ == "__main__":
-    interface.launch()
+    multi_labels = [(label_names[i], round(float(probs[i]), 3)) for i in range(len(probs)) if probs[i] > 0.3]
+
+    return {
+        "Top 3 Probable Emotions": {label: prob for label, prob in top3_labels},
+        "Multi-Label (Threshold > 0.3)": {label: prob for label, prob in multi_labels}
+    }
+
+# Gradio Interface
+demo = gr.Interface(
+    fn=predict_emotions,
+    inputs=gr.Textbox(lines=3, placeholder="Type a sentence to analyze emotions..."),
+    outputs=[gr.Label(label="Top 3 Probable Emotions"), gr.Label(label="Multi-Label Emotions (> 0.3)")],
+    title="🔍 Emotion Classifier with DistilBERT",
+    description="Get Top 3 emotion probabilities + multi-label detection (threshold > 0.3). Model: DistilBERT fine-tuned on GoEmotions dataset."
+)
+
+demo.launch()
