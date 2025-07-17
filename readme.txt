@@ -79,6 +79,7 @@ emotion-classifier/
 https://huggingface.co/spaces/POOJA1222/distilbert-emotion-classifier
 
 
+https://1drv.ms/i/c/6167ef7f5441f9a9/EV5uzk-8FBhHkS2LVDKUnD4BSCc81MQfAdkgLhwK_HPSFg?e=2kqVb6
 
 FINAL OUTCOME
 A complete, polished Emotion Classifier web app powered by AI, live on Hugging Face and ready to use in real-world applications like sentiment analysis, support bots, social monitoring, and more.
